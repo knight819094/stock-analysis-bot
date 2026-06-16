@@ -1,0 +1,12 @@
+# 機密設定（含 token / API key）— 絕不上傳
+config.json
+
+# 執行記錄
+*.log
+
+# Python 快取
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
