@@ -6,7 +6,7 @@
 """
 import json, os, ssl, time, urllib.request, datetime
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CFG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
 
 # Load environment variables from .env
