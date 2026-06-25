@@ -1,5 +1,6 @@
 # 機密設定（含 token / API key）— 絕不上傳
 config.json
+.env
 
 # 執行記錄
 *.log

@@ -1,170 +1,88 @@
-# StockBot — 台股收盤自動分析推播
+# Ai_StockBot — 智慧股票分析與即時監控機器人
 
-每天收盤後自動分析台股並推播到 Telegram。
-- 技術面：均線 MA5/10/20/60/200、KD、近20日壓力支撐
-- 籌碼面：今量 vs 20日均量、放量/量縮
-- 基本面：本益比/殖利率/淨值比 ＋ **預估合理股價**（本益比河流法：當前 EPS × 近數月本益比區間）
-- 進出場：研判方向、進場區、目標、停損
-- 🤖 **AI 盤後綜合研判**：報告末尾由 Gemini 整合大盤＋個股做一段盤後總結（明日方向、焦點、風險）
+一個整合了**即時監控、每日自動推播、與互動式查詢**的 Telegram 股票分析機器人。
 
-> 指數類（加權、金融）不含基本面與合理價；ETF（如 0050）無本益比，合理價不適用。
-> AI 解讀詳見下方「AI 解讀」段；可用 config 的 `ai_commentary` 總開關關閉。
+透過整合 `yfinance`、`Finnhub` 以及最新的 **Google Gemini AI** 模型，Ai_StockBot 不僅能提供台股與美股的技術面與基本面數據，還能生成 K 線圖並產出大師級的盤後/盤中分析報告。
+
+## ✨ 核心功能
+
+1. **🤖 互動式查詢 Bot (`bot.py`)**
+   - 透過 Telegram 傳送代號（如 `2330`, `TSLA`）或名稱（如 `台積電`），即可取得完整分析與 AI 解讀。
+   - 支援台股、美股、加權指數與金融指數。
+   - 自動生成包含 MA 均線與成交量的 **K 線圖**。
+2. **⏱️ 即時到價監控 (`monitor.py`)**
+   - 設定監控標的與價格區間（如 TSLA 420-435）。
+   - 盤中每分鐘即時抓取數據，計算當日 **VWAP（成交量加權平均價）**。
+   - 價格突破或進入關鍵區間時，自動推播至 Telegram（支援 LINE 備用通知）。
+3. **📅 每日收盤推播 (`daily_push.py`)**
+   - 搭配 macOS `launchd` 或 crontab，在台股收盤後自動產生追蹤清單的總結報告並推播。
+4. **🔒 安全的環境變數管理**
+   - 所有金鑰與敏感資料統一存在 `.env`，避免上傳至公開儲存庫。
 
 ## 🚀 安裝與設定
 
-1. 複製設定範本並填入你自己的金鑰：
+1. **複製設定檔範本：**
    ```bash
    cp config.example.json config.json
    ```
-2. 編輯 `config.json`，填入：
-   - `telegram_bot_token`：跟 [@BotFather](https://t.me/BotFather) 申請。
-   - `telegram_chat_id`：對 bot 傳訊息後，用 `getUpdates` 取得。
-   - `finnhub_api_key`：[finnhub.io](https://finnhub.io/register) 免費註冊。
-   - `gemini_api_key`：[Google AI Studio](https://aistudio.google.com/apikey) 免費取得。
-3. 需使用含 `certifi` 的 Python（macOS 上 python.org 版需此）：
-   `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`
-4. 純標準庫，無需 `pip install`（`certifi` 通常已隨 Python 附帶）。
-
-> ⚠️ `config.json` 含金鑰，已被 `.gitignore` 排除，**請勿** commit。
-
-## 架構（分層模組）
-
-依賴方向：`core` ← `sources` / `ai` / `notify` ← `analysis` ← `daily_push` / `bot`（無循環）。
-
-| 檔案 | 層 | 說明 |
-|------|----|------|
-| `core.py` | 核心 | 設定載入、SSL/HTTP（含退避重試）、數值/日期、技術指標(MA/KD) |
-| `sources.py` | 資料源 | 抓資料：TWSE（盤後/即時）、Finnhub、Yahoo |
-| `analysis.py` | 分析 | 組裝報告：台股/美股/指數 + 盤中盤後價格 |
-| `ai.py` | AI | Gemini 解讀（單檔 / 盤後綜合） |
-| `archive.py` | 歸檔 | 將分析與 AI 報告存入 `archive/*.jsonl`，供未來回測與優化使用 |
-| `notify.py` | 通知 | Telegram 發送 |
-| `daily_push.py` | 進入點① | 每日收盤推播（launchd 14:00） |
-| `bot.py` | 進入點② | 互動查詢 bot（常駐長輪詢） |
-| `config.json` | 設定 | token/key、追蹤標的、均線/KD/AI 參數 |
-| `run.log` / `bot.log` | 記錄 | launchd 執行 log |
-
-> 重構前是扁平的 `tw_report.py`／`us_report.py`／`ai_analyst.py`／`tw_bot.py`，已拆成上述分層模組。
-
-## 互動查詢 bot（bot.py）
-
-在 Telegram 直接傳訊息給 `@sean_notify_bot`：
-
-| 你傳 | 回傳 |
-|------|------|
-| `2330` 或 `台積電` 或 `台積` | 台股完整分析（技術/籌碼/基本面/合理價/進出場） |
-| `AAPL`／`NVDA`／`TSLA` | 美股分析（技術 MA/KD/壓撐 + 基本面 + 分析師評等 + 進出場） |
-| `加權` | 加權指數分析 |
-| `金融` | 金融指數分析 |
-| `說明` / `/help` | 使用說明 |
-
-- 盤中查詢（台股平日 09:00–13:30）顯示「現價＋查詢時間（盤中）」**；盤後顯示「收盤」。
-  - 即時價來自 TWSE MIS API（個股 `tse_<代號>.tw`、加權 `tse_t00.tw`、金融 `tse_t17.tw`）。
-  - 技術指標 MA/KD 仍以日線（昨日為止的完整交易日）計算，盤中價只影響「現價」那一行。
-- 台股名稱支援模糊比對（多檔符合時會列出代號讓你選）。
-- 純英文字母 1-5 碼自動視為美股代號（可含 `.B`，如 `BRK.B`）。
-- 僅回應 `config.json` 內的本人 `chat_id`（他人傳訊不理會）。
-- 台股對照來自 TWSE 全上市清單（1366 檔），每 12 小時更新。
-- **⚡ 多執行緒非同步處理**：查詢指令由獨立執行緒（Thread）背景處理，可同時平行查詢多檔股票，即使 AI 生成時間較長也不會造成機器人卡死或延遲。
-
-### 美股資料來源（analysis.analyze_us_stock / sources.py）
-
-| 面向 | 來源 |
-|------|------|
-| 報價、基本面(PE/PB/EPS/殖利率/52週/市值)、分析師評等 | Finnhub（需 `finnhub_api_key`） |
-| 技術面 MA/KD/壓力支撐/量能 | Yahoo Finance chart API（免金鑰） |
-
-> Finnhub 免費版無歷史 K 線權限，故技術指標改由 Yahoo chart API 計算。
-> 美股盤別由 Finnhub `market-status` 判斷（含夏令時間/假日）：盤中顯示「現價＋ET 時間（盤中/盤前/盤後延長）」，收盤後顯示「收盤」。
-
-### AI 解讀（ai.py，Gemini）
-
-每次查詢報告後會附上「🤖 AI 綜合解讀」，由 Gemini 根據**程式算好的數據**做自然語言研判
-（趨勢、技術/籌碼/基本面綜合、操作策略與風險）。
-
-- 原則：**數據由程式計算（保證正確），AI 只解讀、不得捏造數字**。
-- **邏輯防呆機制**：
-  - **均線糾結防呆**：當短中期均線距離過近（<2.5%），程式會強制標記為「均線嚴重糾結」，防止 AI 產生「多頭排列」的幻覺。
-  - **空頭防撞車**：若整體趨勢為偏空，進場區間會自動退守至下檔強力支撐區（左側低接），防止建議高檔接刀的矛盾策略。
-- 模型：**`gemini-3-flash-preview`**（免費方案中推理最強，會開啟 thinking 深度分析）。
-  - 註：`gemini-2.5-pro` / `gemini-3-pro-preview` 免費方案 quota=0 不可用，需付費。
-- config 設定：
-  - `gemini_api_key`：Google AI Studio 金鑰（https://aistudio.google.com/apikey）
-  - `gemini_model`：預設 `gemini-3-flash-preview`；穩定可改 `gemini-2.5-flash`
-  - `gemini_thinking_budget`：思考量，預設 `-1`（動態）；設 `0` 可關閉思考換取速度
-  - `ai_commentary`：`true`/`false` 總開關（設 false 即停用 AI、只回規則式報告）
-- AI 失敗或關閉時，報告照常回傳（不影響數據部分）。
-
-### 歷史數據歸檔 (archive.py)
-
-每次由 Bot 或每日推播產生的分析報告，都會在背景自動以 JSON Lines (`.jsonl`) 格式寫入 `archive/` 資料夾（按月份切分，如 `archive_2026_06.jsonl`）。
-- **用途**：自動建立歷史分析資料庫，未來可用 Python (`pandas`) 讀取，結合真實股價走勢進行策略勝率回測。
-- **Git**：`archive/` 預設已加入 `.gitignore`，歸檔資料不會被上傳，以保護硬碟容量與隱私。
-
-### bot 常駐管理（launchd，KeepAlive 自動重啟）
-
-```bash
-PLIST=~/Library/LaunchAgents/com.sean.twstockbot.plist
-launchctl load -w   "$PLIST"   # 啟動
-launchctl unload    "$PLIST"   # 停止
-launchctl list | grep twstockbot   # 狀態
-tail -f "/Users/moony./Documents/Sean Program/StockBot/bot.log"  # 看即時 log
-```
-
-> bot 用長輪詢（getUpdates），同一時間只能有一個程序在收訊；若用 Telegram MCP 的 get-updates 工具會短暫衝突，平常不影響。
-
-## 手動執行
-
-```bash
-cd "/Users/moony./Documents/Sean Program/StockBot"
-python3 daily_push.py        # 實際推播
-python3 daily_push.py --dry  # 只印出、不推播
-python3 bot.py               # 手動跑互動 bot（平常由 launchd 常駐）
-```
-
-> 必須用含 certifi 的 Python：
-> `/Library/Frameworks/Python.framework/Versions/3.11/bin/python3`
-
-## 排程（macOS launchd）
-
-- 設定檔：`~/Library/LaunchAgents/com.sean.twstockreport.plist`
-- 時間：**週一～五 14:00**（收盤後 30 分）
-- 非交易日（假日/補假）腳本會自動偵測並略過推播
-
-### 改時間 / 標的
-
-1. 改標的：編輯 `config.json` 的 `stocks` 與 `indices`
-2. 改時間：編輯 plist 的 `StartCalendarInterval`，然後：
+2. **編輯 `config.json`：**
+   設定你的監控目標、均線參數與 AI 設定。
+3. **建立 `.env` 檔案並填入金鑰：**
+   在專案根目錄建立 `.env` 檔案，內容如下：
+   ```env
+   TELEGRAM_BOT_TOKEN=你的_Telegram_Bot_Token
+   TELEGRAM_CHAT_ID=你的_Chat_ID
+   FINNHUB_API_KEY=你的_Finnhub_API_Key
+   GEMINI_API_KEY=你的_Gemini_API_Key
+   # 下方為可選（備用通知）
+   LINE_CHANNEL_ACCESS_TOKEN=
+   LINE_USER_ID=
+   ```
+4. **安裝必要套件：**
+   本專案依賴部分 Python 套件進行圖表生成、數據抓取與環境變數管理：
    ```bash
-   launchctl unload ~/Library/LaunchAgents/com.sean.twstockreport.plist
-   launchctl load -w ~/Library/LaunchAgents/com.sean.twstockreport.plist
+   pip install yfinance pandas matplotlib mplfinance python-dotenv requests
    ```
 
-### 暫停 / 恢復 / 移除
+## 📂 架構模組
 
+| 檔案 | 說明 |
+|------|------|
+| `core.py` | 核心：載入設定檔與 `.env`，提供基礎工具與技術指標 (MA/KD) 運算 |
+| `sources.py` | 數據源：串接 TWSE (盤後/即時)、Finnhub 與 Yahoo API |
+| `analysis.py` | 分析：組裝報告 (技術面、基本面、合理價預估) |
+| `chart.py` | 繪圖：依據歷史數據產出 K 線圖 (`.png`) |
+| `ai.py` | AI 引擎：串接 Gemini 產出自然語言解讀報告 |
+| `notify.py` | 通知：負責傳送文字與圖片至 Telegram（或 LINE） |
+| `bot.py` | 進入點①：常駐執行的 Telegram 互動式機器人 |
+| `monitor.py` | 進入點②：常駐執行的即時到價監控與 VWAP 計算 |
+| `daily_push.py` | 進入點③：每日定時觸發的收盤推播程式 |
+| `archive.py` | 歸檔：將分析與 AI 報告存入 `archive/` 供未來回測 |
+
+## 🕹️ 執行與使用方式
+
+你可以同時在背景跑 `bot.py` 和 `monitor.py`：
+
+**1. 啟動互動機器人：**
 ```bash
-# 暫停
-launchctl unload ~/Library/LaunchAgents/com.sean.twstockreport.plist
-# 恢復
-launchctl load -w ~/Library/LaunchAgents/com.sean.twstockreport.plist
-# 立即手動觸發一次（測試）
-launchctl kickstart -k gui/$(id -u)/com.sean.twstockreport
-# 確認是否註冊
-launchctl list | grep twstockreport
-# 完全移除
-launchctl unload ~/Library/LaunchAgents/com.sean.twstockreport.plist
-rm ~/Library/LaunchAgents/com.sean.twstockreport.plist
+python3 bot.py
+```
+> 啟動後，你可以在 Telegram 對機器人說 `2330` 或 `TSLA`。
+
+**2. 啟動即時監控：**
+```bash
+python3 monitor.py
+# 若只想測試跑一次就退出，請加 --test 參數：
+python3 monitor.py --test
 ```
 
-## 目前追蹤標的
+**3. 手動測試每日推播：**
+```bash
+python3 daily_push.py
+```
 
-- 2330 台積電（完整分析）
-- 0050 元大台灣50（完整分析，ETF 無本益比）
-- 加權指數（均線/KD/壓撐）
-- 金融保險類指數（均線/趨勢；指數無逐日高低故無 KD）
+## ⚠️ 注意事項
 
-## 注意
-
-- 操作建議為**規則式計算**（KD 交叉、均線、近 20 日壓撐），僅供參考，非投資建議。
-- Mac 需在排程時間處於開機/喚醒狀態才會執行（睡眠中錯過的不會補跑）。
-- Telegram token 與 chat id 存在 `config.json`，請勿外流。
+- 操作建議為**規則式計算**（KD 交叉、均線、近 20 日壓撐），AI 解讀亦屬於實驗性質，**僅供參考，非投資建議**。
+- `archive/` 與 `tmp_charts/` 會自動產生檔案，已被 `.gitignore` 排除。
+- `.env` 包含所有敏感金鑰，**絕對不可** commit 至 Git。

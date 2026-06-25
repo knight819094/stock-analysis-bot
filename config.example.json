@@ -1,8 +1,4 @@
 {
-  "telegram_bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
-  "telegram_chat_id": "YOUR_TELEGRAM_CHAT_ID",
-  "finnhub_api_key": "YOUR_FINNHUB_API_KEY",
-  "gemini_api_key": "YOUR_GEMINI_API_KEY",
   "gemini_model": "gemini-3-flash-preview",
   "ai_commentary": true,
   "stocks": ["2330", "0050"],
@@ -14,5 +10,11 @@
   "kd_period": 9,
   "history_months": 12,
   "valuation_months": 5,
-  "skip_if_not_trading_day": true
+  "skip_if_not_trading_day": true,
+  "monitor_targets": {
+    "TSLA": {
+      "low": 420.0,
+      "high": 435.0
+    }
+  }
 }

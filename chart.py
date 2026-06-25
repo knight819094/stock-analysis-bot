@@ -50,8 +50,10 @@ def draw_kline(symbol, name, bars):
             return None
             
         # 準備存檔路徑
+        import datetime
+        now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_symbol = str(symbol).replace('/', '_').replace('.', '_').replace('^', '_')
-        filepath = os.path.join(CHART_DIR, f"{safe_symbol}.png")
+        filepath = os.path.join(CHART_DIR, f"{safe_symbol}_{now_str}.png")
         
         # 設定自訂風格 (台灣習慣：紅漲綠跌)
         mc = mpf.make_marketcolors(up='r', down='g', edge='inherit', wick='inherit', volume='inherit')

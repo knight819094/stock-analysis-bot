@@ -186,6 +186,8 @@ def _fmt_et(ts):
 
 def analyze_us_stock(symbol, bars=None):
     sym = symbol.upper().strip()
+    if sym == "BRK":
+        sym = "BRK.B"
     bars = bars if bars is not None else S.yahoo_chart(sym)
     quote = S.finnhub(f"/quote?symbol={sym}")
     

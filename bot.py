@@ -122,11 +122,11 @@ def handle(chat, text):
         
         final_text = ai.with_ai(rep)
         
-        # 先發送圖片
+        reply(chat, final_text)
+        
+        # 後發送圖片
         if photo:
             notify.send_photo(photo, chat=chat)
-            
-        reply(chat, final_text)
         
         # 進行歸檔
         import archive

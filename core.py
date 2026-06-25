@@ -8,6 +8,22 @@ import json, os, ssl, time, urllib.request, datetime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(BASE, "config.json"), encoding="utf-8"))
+
+# Load environment variables from .env
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(BASE, ".env"))
+except ImportError:
+    pass
+
+# Map env vars to CFG
+CFG["telegram_bot_token"] = os.getenv("TELEGRAM_BOT_TOKEN", CFG.get("telegram_bot_token"))
+CFG["telegram_chat_id"] = os.getenv("TELEGRAM_CHAT_ID", CFG.get("telegram_chat_id"))
+CFG["finnhub_api_key"] = os.getenv("FINNHUB_API_KEY", CFG.get("finnhub_api_key"))
+CFG["gemini_api_key"] = os.getenv("GEMINI_API_KEY", CFG.get("gemini_api_key"))
+CFG["line_channel_access_token"] = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", CFG.get("line_channel_access_token"))
+CFG["line_user_id"] = os.getenv("LINE_USER_ID", CFG.get("line_user_id"))
+
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 # ---------- SSL（python.org 版 macOS 不吃系統憑證，改用 certifi/系統 bundle）----------

@@ -48,7 +48,7 @@ def _generate(system_text, report_text):
     }
     payload = json.dumps(body).encode("utf-8")
     last_err = None
-    for i in range(4):  # 429/500/503 忙線時退避重試
+    for i in range(5):  # 429/500/503 忙線時退避重試
         try:
             req = urllib.request.Request(
                 URL, data=payload,
@@ -61,8 +61,8 @@ def _generate(system_text, report_text):
             return text or None
         except urllib.error.HTTPError as e:
             last_err = e
-            if e.code in (429, 500, 503) and i < 3:
-                time.sleep(3 * (i + 1))  # 退避 3,6,9s
+            if e.code in (429, 500, 503) and i < 4:
+                time.sleep(5 * (2 ** i))  # 退避 5, 10, 20, 40s
                 continue
             break
         except Exception as e:
