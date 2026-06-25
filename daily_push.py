@@ -52,6 +52,10 @@ def main():
     if not DRY:
         res = notify.send(msg)
         print("\n[Telegram]", "OK" if res.get("ok") else res)
+        
+        # 進行歸檔
+        import archive
+        archive.save_record("daily_push", "ALL", msg)
 
 if __name__ == "__main__":
     main()

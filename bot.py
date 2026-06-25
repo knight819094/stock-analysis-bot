@@ -107,7 +107,15 @@ def handle(chat, text):
         else:
             reply(chat, f"🔍 查詢 {kind} {info} 中…（約 10-30 秒）")
             rep = A.analyze_stock(kind, info)
-        reply(chat, ai.with_ai(rep))
+        
+        final_text = ai.with_ai(rep)
+        reply(chat, final_text)
+        
+        # 進行歸檔
+        import archive
+        target_name = info if info else kind
+        archive.save_record("bot_query", target_name, final_text)
+        
     except Exception as e:
         reply(chat, f"⚠️ 分析失敗：{e}")
 

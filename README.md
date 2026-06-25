@@ -37,6 +37,7 @@
 | `sources.py` | 資料源 | 抓資料：TWSE（盤後/即時）、Finnhub、Yahoo |
 | `analysis.py` | 分析 | 組裝報告：台股/美股/指數 + 盤中盤後價格 |
 | `ai.py` | AI | Gemini 解讀（單檔 / 盤後綜合） |
+| `archive.py` | 歸檔 | 將分析與 AI 報告存入 `archive/*.jsonl`，供未來回測與優化使用 |
 | `notify.py` | 通知 | Telegram 發送 |
 | `daily_push.py` | 進入點① | 每日收盤推播（launchd 14:00） |
 | `bot.py` | 進入點② | 互動查詢 bot（常駐長輪詢） |
@@ -93,6 +94,12 @@
   - `gemini_thinking_budget`：思考量，預設 `-1`（動態）；設 `0` 可關閉思考換取速度
   - `ai_commentary`：`true`/`false` 總開關（設 false 即停用 AI、只回規則式報告）
 - AI 失敗或關閉時，報告照常回傳（不影響數據部分）。
+
+### 歷史數據歸檔 (archive.py)
+
+每次由 Bot 或每日推播產生的分析報告，都會在背景自動以 JSON Lines (`.jsonl`) 格式寫入 `archive/` 資料夾（按月份切分，如 `archive_2026_06.jsonl`）。
+- **用途**：自動建立歷史分析資料庫，未來可用 Python (`pandas`) 讀取，結合真實股價走勢進行策略勝率回測。
+- **Git**：`archive/` 預設已加入 `.gitignore`，歸檔資料不會被上傳，以保護硬碟容量與隱私。
 
 ### bot 常駐管理（launchd，KeepAlive 自動重啟）
 
