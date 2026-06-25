@@ -49,8 +49,8 @@ def _f(v, fmt="{:.2f}", default="—"):
         return default
 
 # ===================== 台股 =====================
-def analyze_stock(code, name):
-    bars = S.fetch_stock_ohlcv(code, CFG["history_months"])
+def analyze_stock(code, name, bars=None):
+    bars = bars if bars is not None else S.fetch_stock_ohlcv(code, CFG["history_months"])
     if len(bars) < 20:
         return f"⚠️ {code} {name}：資料不足，略過"
     closes = [b["c"] for b in bars if b["c"]]
@@ -184,15 +184,27 @@ def _fmt_et(ts):
     except Exception:
         return ""
 
-def analyze_us_stock(symbol):
+def analyze_us_stock(symbol, bars=None):
     sym = symbol.upper().strip()
+    bars = bars if bars is not None else S.yahoo_chart(sym)
     quote = S.finnhub(f"/quote?symbol={sym}")
-    if not quote or quote.get("c") in (None, 0):
+    
+    if (not quote or quote.get("c") in (None, 0)) and bars:
+        # Fallback to Yahoo if Finnhub fails (e.g., indices like ^VIX)
+        last = bars[-1]
+        prev = bars[-2]["c"] if len(bars) >= 2 else last["c"]
+        quote = {
+            "c": last["c"],
+            "d": last["c"] - prev,
+            "dp": (last["c"] - prev) / prev * 100 if prev else 0,
+            "t": None
+        }
+    elif not quote or quote.get("c") in (None, 0):
         return f"查無美股「{sym}」或目前無報價。"
+        
     profile = S.finnhub(f"/stock/profile2?symbol={sym}") or {}
     metric = (S.finnhub(f"/stock/metric?symbol={sym}&metric=all") or {}).get("metric", {})
     recs = S.finnhub(f"/stock/recommendation?symbol={sym}") or []
-    bars = S.yahoo_chart(sym)
 
     name = profile.get("name") or sym
     price = quote["c"]; chg = quote.get("d") or 0; chgp = quote.get("dp") or 0

@@ -94,14 +94,15 @@ def fetch_fin_index_closes(days=12):
 
 def fetch_stock_list():
     """全上市 [(code, name)]，給 bot 做名稱↔代號對照。"""
-    d = twse_json("https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=json", retries=3)
-    if not d:
+    # 台灣證交所原先的 STOCK_DAY_ALL?response=json 已經改為強制回傳 CSV
+    # 因此改用 OpenAPI 版本 (https://openapi.twse.com.tw)
+    d = http_json("https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL", retries=3)
+    if not d or not isinstance(d, list):
         return []
-    data = d.get("data") or (d.get("tables", [{}])[0].get("data"))
     out = []
-    for r in (data or []):
+    for r in d:
         try:
-            out.append((r[0].strip(), r[1].strip()))
+            out.append((r.get("Code", "").strip(), r.get("Name", "").strip()))
         except Exception:
             continue
     return out
@@ -162,11 +163,14 @@ def yahoo_chart(symbol, rng="1y"):
         d = http_json(url, retries=2)
         res = d["chart"]["result"][0]
         q = res["indicators"]["quote"][0]
+        ts_list = res.get("timestamp", [])
         bars = []
-        for o, h, l, c, v in zip(q["open"], q["high"], q["low"], q["close"], q["volume"]):
+        for t, o, h, l, c, v in zip(ts_list, q["open"], q["high"], q["low"], q["close"], q["volume"]):
             if None in (o, h, l, c):
                 continue
-            bars.append({"o": o, "h": h, "l": l, "c": c, "vol": v or 0})
+            import datetime
+            dt = datetime.datetime.fromtimestamp(t).strftime('%Y-%m-%d')
+            bars.append({"date": dt, "o": o, "h": h, "l": l, "c": c, "vol": v or 0})
         return bars
     except Exception:
         return []

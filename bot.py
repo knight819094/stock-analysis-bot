@@ -54,9 +54,12 @@ def resolve(text):
         return (code, CODE2NAME.get(code, code))
     if t in NAME2CODE:
         return (NAME2CODE[t], t)
-    # 美股代號（純英文字母，1-5 碼，可含 .B 等）
-    if re.fullmatch(r"[A-Za-z]{1,5}(\.[A-Za-z]{1,2})?", t):
-        return ("US", t.upper())
+    # 美股代號或指數（例如 AAPL, ^VIX, .VIX）
+    if re.fullmatch(r"[\^\.]?[A-Za-z0-9]{1,8}(\.[A-Za-z]{1,2})?", t):
+        code = t.upper()
+        if code.startswith("."):
+            code = "^" + code[1:]
+        return ("US", code)
     # 模糊比對（名稱包含輸入字串）
     seen = {}
     for name, code in NAME2CODE.items():
@@ -95,20 +98,34 @@ def handle(chat, text):
         lines = "\n".join(f"  {c} {n}" for c, n in list(info.items())[:8])
         reply(chat, f"「{t}」符合多檔，請指定代號：\n{lines}"); return
     try:
+        import chart
+        photo = None
+        
         if kind == "INDEX_TAIEX":
             reply(chat, "🔍 查詢 加權指數 中…")
-            rep = A.analyze_taiex(S.fetch_taiex_ohlc(CFG["history_months"]))
+            bars = S.fetch_taiex_ohlc(CFG["history_months"])
+            rep = A.analyze_taiex(bars)
+            photo = chart.draw_kline("TAIEX", "加權指數", bars)
         elif kind == "INDEX_FIN":
             reply(chat, "🔍 查詢 金融指數 中…")
             rep = A.analyze_fin_index()
         elif kind == "US":
             reply(chat, f"🔍 查詢美股 {info} 中…")
-            rep = A.analyze_us_stock(info)
+            bars = S.yahoo_chart(info)
+            rep = A.analyze_us_stock(info, bars=bars)
+            photo = chart.draw_kline(info, info, bars)
         else:
             reply(chat, f"🔍 查詢 {kind} {info} 中…（約 10-30 秒）")
-            rep = A.analyze_stock(kind, info)
+            bars = S.fetch_stock_ohlcv(kind, CFG["history_months"])
+            rep = A.analyze_stock(kind, info, bars=bars)
+            photo = chart.draw_kline(kind, info, bars)
         
         final_text = ai.with_ai(rep)
+        
+        # 先發送圖片
+        if photo:
+            notify.send_photo(photo, chat=chat)
+            
         reply(chat, final_text)
         
         # 進行歸檔
