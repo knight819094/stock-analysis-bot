@@ -128,7 +128,8 @@ def main():
                 if not text:
                     continue
                 refresh_map()
-                handle(msg["chat"]["id"], text)
+                import threading
+                threading.Thread(target=handle, args=(msg["chat"]["id"], text)).start()
         except Exception as e:
             print(f"[{datetime.datetime.now()}] loop error: {e}")
             time.sleep(5)

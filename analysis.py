@@ -11,6 +11,22 @@ from core import CFG, sma, compute_kd, trend_arrow
 import sources as S
 
 # ===================== 共用 =====================
+def check_ma_status(ma_dict):
+    ma_vals = [ma_dict.get(p) for p in [5, 10, 20, 60] if ma_dict.get(p) is not None]
+    if len(ma_vals) >= 4:
+        max_ma, min_ma = max(ma_vals), min(ma_vals)
+        if (max_ma - min_ma) / min_ma <= 0.025:
+            return "均線嚴重糾結 (面臨表態轉折)"
+        m200 = ma_dict.get(200)
+        m5, m10, m20, m60 = ma_dict.get(5), ma_dict.get(10), ma_dict.get(20), ma_dict.get(60)
+        if m200 is not None:
+            if m5 > m10 > m20 > m60 > m200: return "標準多頭排列"
+            if m5 < m10 < m20 < m60 < m200: return "標準空頭排列"
+        else:
+            if m5 > m10 > m20 > m60: return "短期多頭排列"
+            if m5 < m10 < m20 < m60: return "短期空頭排列"
+    return "均線交錯"
+
 def is_trading_today(taiex_bars):
     return bool(taiex_bars) and taiex_bars[-1]["date"] == datetime.date.today()
 
@@ -87,6 +103,7 @@ def analyze_stock(code, name):
     ma_str = "　".join(f"MA{p} {ma[p]:.1f}{trend_arrow(last['c'], ma[p])}" for p in CFG["ma_periods"] if ma.get(p))
     L.append(f"📊 均線 {ma_str}")
     L.append(f"📊 股價{above_ma} MA20")
+    L.append(f"📊 均線型態：{check_ma_status(ma)}")
     if k is not None:
         L.append(f"📊 KD：K {k:.1f} / D {d:.1f}　{kd_cross}")
     L.append(f"📊 壓力 {resistance:.2f}　支撐 {support:.2f}（近20日）")
@@ -110,10 +127,16 @@ def analyze_stock(code, name):
             L.append("💲 預估合理價：—（ETF/無本益比，不適用）")
     else:
         L.append("🏢 —（查無，ETF/指數不適用）")
-    L += ["", "【操作建議｜僅供參考】",
-          f"🎯 研判：{bias}",
-          f"🟢 進場參考區：{entry_lo:.2f} ~ {entry_hi:.2f}",
-          f"🔴 目標(壓力)：{target:.2f}",
+    L += ["", "【操作建議｜僅供參考】", f"🎯 研判：{bias}"]
+    if bias == "偏空":
+        lo = round(support * 0.98, 2)
+        hi = round(support * 1.02, 2)
+        if hi > last["c"]: hi = min(hi, last["c"])
+        L.append(f"🟢 進場參考：{lo:.2f} ~ {hi:.2f} (左側低接) 或等站穩 MA20")
+    else:
+        L.append(f"🟢 進場參考：{entry_lo:.2f} ~ {entry_hi:.2f}")
+    
+    L += [f"🔴 目標(壓力)：{target:.2f}",
           f"🛑 停損參考：{stop:.2f}"]
     return "\n".join(L)
 
@@ -196,6 +219,7 @@ def analyze_us_stock(symbol):
         ma_str = "　".join(f"MA{p} {ma[p]:.1f}{trend_arrow(price, ma[p])}" for p in CFG["ma_periods"] if ma.get(p))
         L.append(f"📊 均線 {ma_str}")
         L.append(f"📊 股價{'站上' if (ma.get(20) and price >= ma[20]) else '跌破'} MA20")
+        L.append(f"📊 均線型態：{check_ma_status(ma)}")
         if k is not None:
             if k0 <= d0 and k > d: cross = "KD 黃金交叉（偏多）"
             elif k0 >= d0 and k < d: cross = "KD 死亡交叉（偏空）"
@@ -244,9 +268,16 @@ def analyze_us_stock(symbol):
         entry_lo, entry_hi = sup, max(sup, ma20 or sup)
         if entry_hi < entry_lo: entry_lo, entry_hi = entry_hi, entry_lo
         bias = "偏多" if (ma20 and price >= ma20) else "偏空"
-        L += [f"🎯 研判：{bias}",
-              f"🟢 進場參考區：{entry_lo:.2f} ~ {entry_hi:.2f}",
-              f"🔴 目標(壓力)：{res:.2f}",
+        L.append(f"🎯 研判：{bias}")
+        if bias == "偏空":
+            lo = round(sup * 0.98, 2)
+            hi = round(sup * 1.02, 2)
+            if hi > price: hi = min(hi, price)
+            L.append(f"🟢 進場參考：{lo:.2f} ~ {hi:.2f} (左側低接) 或等站穩 MA20")
+        else:
+            L.append(f"🟢 進場參考區：{entry_lo:.2f} ~ {entry_hi:.2f}")
+            
+        L += [f"🔴 目標(壓力)：{res:.2f}",
               f"🛑 停損參考：{sup*0.97:.2f}"]
     else:
         L.append("🎯 資料不足，暫無進出場參考")
